@@ -11,4 +11,6 @@ class WebHookService(NotificationService):
         self.webhook_url = webhook_url
 
     def send_notification(self, notification: Notification) -> None:
+        if not self.webhook_url.startswith("http"):
+            return
         requests.post(self.webhook_url, json=json.loads(notification.model_dump_json()))

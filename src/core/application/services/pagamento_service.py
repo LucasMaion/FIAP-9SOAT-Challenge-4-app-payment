@@ -4,6 +4,7 @@ from src.adapters.driven.events.model.notification import Notification
 from src.core.application.interfaces.pagamento import IPagamentoService
 from src.core.domain.aggregates.pagamento_aggregate import PagamentoAggregate
 from src.core.domain.aggregates.pedido_aggregate import PedidoAggregate
+from src.core.domain.entities.compra_entity import CompraEntity
 from src.core.domain.entities.meio_de_pagamento_entity import MeioDePagamentoEntity
 from src.core.domain.entities.pagamento_entity import PartialPagamentoEntity
 from src.core.helpers.enums.compra_status import CompraStatus
@@ -18,7 +19,7 @@ class PagamentoService(IPagamentoService):
         notification_message = {"payment_id": None, "message": ""}
         payment: PagamentoAggregate = None
         try:
-            pedido = self.purchase_query.get(pedido_id)
+            pedido = self.pedido_repository.get(pedido_id)
             if not pedido:
                 raise ValueError("Pedido não encontrado.")
             if pedido.payments:
@@ -43,7 +44,9 @@ class PagamentoService(IPagamentoService):
                     payment_entity, pedido.purchase
                 )
                 pedido.purchase.status = CompraStatus.CONCLUINDO
-                payment.purchase = self.pedido_repository.update(pedido.purchase)
+                payment.purchase = self.pedido_repository.update_status(
+                    pedido.purchase.id, CompraStatus.CONCLUINDO
+                )
                 notification_message["message"] = f"Pagamento iniciado com sucesso."
                 notification_message["payment_id"] = payment.payment.id
                 return payment
@@ -86,7 +89,9 @@ class PagamentoService(IPagamentoService):
                     payment.payment, payment.purchase
                 )
                 payment.purchase.status = CompraStatus.CRIANDO
-                payment.purchase = self.pedido_repository.update(payment.purchase)
+                payment.purchase = self.pedido_repository.update_status(
+                    payment.purchase.id, CompraStatus.CRIANDO
+                )
             else:
                 raise ValueError("Falha ao cancelar pagamento.")
             notification_message["message"] = f"Pagamento cancelado com sucesso."
@@ -129,7 +134,9 @@ class PagamentoService(IPagamentoService):
                     payment.payment, payment.purchase
                 )
                 payment.purchase.status = CompraStatus.CONCLUIDO
-                payment.purchase = self.pedido_repository.update(payment.purchase)
+                payment.purchase = self.pedido_repository.update_status(
+                    payment.purchase.id, CompraStatus.CONCLUIDO
+                )
             else:
                 raise ValueError("Falha ao finalizar o pagamento.")
             notification_message["message"] = f"Pagamento finalizado com sucesso."
@@ -164,11 +171,5 @@ class PagamentoService(IPagamentoService):
             notification = Notification(
                 title=title,
                 message=json.dumps(message) if isinstance(message, dict) else message,
-                user_id=(
-                    payment.purchase.client.id
-                    if hasattr(payment, "purchase")
-                    and hasattr(payment.purchase, "client")
-                    else None
-                ),
             )
             notification_service.send_notification(notification)

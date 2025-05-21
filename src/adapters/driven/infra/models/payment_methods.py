@@ -1,15 +1,17 @@
-from peewee import CharField, BooleanField
+from mongoengine import StringField, BooleanField, IntField
 
-from src.adapters.driven.infra.models.base_model import BaseModel
+from src.adapters.driven.infra.models.base_model import BaseDocument, get_next_sequence
 
 
-class PaymentMethod(BaseModel):
-    class Meta:
-        db_table = "payment_method"
+class PaymentMethod(BaseDocument):
+    meta = {"collection": "payment_methods"}
 
-    name = CharField()
-    sys_name = CharField()
-    internal_comm_method_name = CharField(null=True)
-    internal_comm_delay = CharField(null=True)
-    description = CharField(null=True)
+    id = IntField(
+        primary_key=True, default=lambda: get_next_sequence("payment_method_id")
+    )
+    name = StringField(required=True)
+    sys_name = StringField(required=True)
+    internal_comm_method_name = StringField(null=True)
+    internal_comm_delay = IntField(null=True)
+    description = StringField(null=True)
     is_active = BooleanField(default=True)

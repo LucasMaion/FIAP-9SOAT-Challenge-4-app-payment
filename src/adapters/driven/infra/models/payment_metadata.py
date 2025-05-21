@@ -1,12 +1,14 @@
-from peewee import ForeignKeyField, CharField
+from mongoengine import ReferenceField, StringField, IntField
 
-from src.adapters.driven.infra.models.base_model import BaseModel
+from src.adapters.driven.infra.models.base_model import BaseDocument, get_next_sequence
 from src.adapters.driven.infra.models.payments import Payment
 
 
-class PaymentMetadata(BaseModel):
-    class Meta:
-        db_table = "payment_metadata"
+class PaymentMetadata(BaseDocument):
+    meta = {"collection": "payment_metadata"}
 
-    provider_transaction_id = CharField()
-    payment = ForeignKeyField(Payment, backref="metadata", null=True, unique=True)
+    id = IntField(
+        primary_key=True, default=lambda: get_next_sequence("payment_metadata_id")
+    )
+    provider_transaction_id = StringField(required=True)
+    payment = ReferenceField(Payment, unique=True, null=True, reverse_delete_rule=2)

@@ -1,38 +1,22 @@
+from mongoengine import Document, DateTimeField, StringField, IntField
 from datetime import datetime
-from peewee import Model, DateTimeField, AutoField
-from playhouse.signals import pre_save
-from src.adapters.driven.infra import db
 
 
-class BaseModel(Model):
-    """Base model class that all models will inherit from."""
+class Counter(Document):
+    name = StringField(required=True, unique=True)
+    seq = IntField(default=0)
 
-    id = AutoField()
-    created_at = DateTimeField(default=datetime.now)
-    updated_at = DateTimeField(default=datetime.now)
+    meta = {"collection": "counters", "db_alias": "app-payments"}
+
+
+def get_next_sequence(name):
+    counter = Counter.objects(name=name).modify(upsert=True, new=True, inc__seq=1)
+    return counter.seq
+
+
+class BaseDocument(Document):
+    meta = {"abstract": True, "db_alias": "app-payments", "collection": "payments"}
+
+    created_at = DateTimeField(default=datetime.utcnow)
+    updated_at = DateTimeField(default=datetime.utcnow)
     deleted_at = DateTimeField(null=True)
-
-    class Meta:
-        database = db
-
-    @classmethod
-    def update(cls, *args, **kwargs):
-        kwargs["updated_at"] = datetime.now()
-        return super(BaseModel, cls).update(*args, **kwargs)
-
-    @classmethod
-    def select(cls, *fields):
-        return super().select(*fields).where(cls.deleted_at.is_null())
-
-    @classmethod
-    def get(cls, *query, **kwargs):
-        query = (cls.deleted_at.is_null(), *query)
-        return super().get(*query, **kwargs)
-
-
-@pre_save(sender=BaseModel)
-def apply_default_values(model_class, instance, created):
-    if instance.created_at is None:
-        instance.created_at = BaseModel._meta.fields["created_at"].default
-    if instance.updated_at is None:
-        instance.updated_at = BaseModel._meta.fields["updated_at"].default

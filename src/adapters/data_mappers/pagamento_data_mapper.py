@@ -45,5 +45,5 @@ class PagamentoEntityDataMapper:
             "status": payment.status.value,
             "value": payment.payment_value.value,
             "currency": payment.payment_value.currency.id,
-            "purchase": purchase.id if purchase else None,
+            "purchase": purchase.id or None,
         }
