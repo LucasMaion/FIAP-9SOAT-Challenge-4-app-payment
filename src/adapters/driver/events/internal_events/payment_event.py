@@ -1,17 +1,17 @@
 import json
 from loguru import logger
+from src.adapters.driven.api.repositories.api_pedido_repository import (
+    ApiPedidoRepository,
+)
 from src.adapters.driven.events.model.notification import Notification
 from src.adapters.driven.events.services.webhook.web_hook_service import WebHookService
 from src.adapters.driven.infra.ports.orm_meio_de_pagamento_query import (
     OrmMeioDePagamentoQuery,
 )
-from src.adapters.driven.infra.ports.orm_pedido_query import OrmPedidoQuery
 from src.adapters.driven.infra.repositories.orm_pagamento_repository import (
     OrmPagamentoRepository,
 )
-from src.adapters.driven.infra.repositories.orm_pedido_repository import (
-    OrmPedidoRepository,
-)
+
 from src.adapters.driven.payment_providers.functions.get_payment_provider_from_sys_name import (
     get_payment_provider_from_sys_name,
 )
@@ -30,8 +30,7 @@ class PaymentEvent(Event):
 
         self.pagamento_service = PagamentoService(
             OrmPagamentoRepository(),
-            OrmPedidoRepository(InMemoryCacheService()),
-            OrmPedidoQuery(),
+            ApiPedidoRepository(),
             OrmMeioDePagamentoQuery(),
             DefaultPaymentProvider(),
             [],

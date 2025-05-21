@@ -9,23 +9,20 @@ It was developed as a challenge project for the FIAP Software Architecture Post 
 """
 
 import os
+import dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.security import HTTPBearer
+from mongoengine import connect
 
-from builder import build_db, seed_db
-from src.adapters.driven.infra.database.db import start_db
 from src.adapters.driver.API import (
-    cliente_router,
-    payment_router,
-    pedido_router,
-    produto_router,
-    queue_router,
     maintenance_router,
-    web_hook_example_router,
+    payment_router,
 )
 
 auth_scheme = HTTPBearer()
+
+dotenv.load_dotenv(override=True)
 
 
 def get_token(token: str = Depends(auth_scheme)):
@@ -52,11 +49,11 @@ app = FastAPI(
     },
 )
 
-start_db()
-if int(os.getenv("DB_BUILD", 0)):
-    build_db()
-if int(os.getenv("DB_SEED", 0)):
-    seed_db()
+connect(
+    db="app_payments",
+    host=os.environ["MONGO_HOST"],
+    alias="app-payments",
+)
 
 
 @app.get(f"/{STAGE_PREFIX}/new_docs", include_in_schema=False)
@@ -72,7 +69,7 @@ async def openapijson():
     return app.openapi()
 
 
-@app.get(f"/{STAGE_PREFIX}/health_check", dependencies=[Depends(get_token)])
+@app.get(f"/{STAGE_PREFIX}/health_check")
 def health_check():
     """
     Request this to check on the server health.
@@ -80,28 +77,9 @@ def health_check():
     return "Healthy"
 
 
-app.include_router(
-    cliente_router.router, prefix=f"/{STAGE_PREFIX}", dependencies=[Depends(get_token)]
-)
-app.include_router(
-    produto_router.router, prefix=f"/{STAGE_PREFIX}", dependencies=[Depends(get_token)]
-)
-app.include_router(
-    pedido_router.router, prefix=f"/{STAGE_PREFIX}", dependencies=[Depends(get_token)]
-)
-app.include_router(
-    payment_router.router, prefix=f"/{STAGE_PREFIX}", dependencies=[Depends(get_token)]
-)
-app.include_router(
-    queue_router.router, prefix=f"/{STAGE_PREFIX}", dependencies=[Depends(get_token)]
-)
+app.include_router(payment_router.router, prefix=f"/{STAGE_PREFIX}")
 app.include_router(
     maintenance_router.router,
-    prefix=f"/{STAGE_PREFIX}",
-    dependencies=[Depends(get_token)],
-)
-app.include_router(
-    web_hook_example_router.router,
     prefix=f"/{STAGE_PREFIX}",
     dependencies=[Depends(get_token)],
 )

@@ -38,10 +38,6 @@ class TestPagamentoService:
         return MagicMock()
 
     @pytest.fixture
-    def purchase_query(self):
-        return MagicMock()
-
-    @pytest.fixture
     def pagamento_repository(self):
         return MagicMock()
 
@@ -54,20 +50,24 @@ class TestPagamentoService:
         return MagicMock()
 
     @pytest.fixture
+    def notification_service(self):
+        return MagicMock()
+
+    @pytest.fixture
     def pagamento_service(
         self,
         pagamento_repository,
-        purchase_query,
         payment_provider,
         meio_de_pagamento_query,
         pedido_repository,
+        notification_service,
     ):
         return PagamentoService(
             pagamento_repository=pagamento_repository,
-            purchase_query=purchase_query,
             payment_provider=payment_provider,
             meio_de_pagamento_query=meio_de_pagamento_query,
             pedido_repository=pedido_repository,
+            notification_services=[notification_service],
         )
 
     @pytest.fixture
@@ -215,7 +215,10 @@ class TestPagamentoService:
         compra_entity: CompraEntity,
         pagamento_entity: PagamentoEntity,
     ):
-        return PagamentoAggregate(payment=pagamento_entity, purchase=compra_entity)
+        return PagamentoAggregate(
+            payment=pagamento_entity,
+            purchase=PartialCompraEntity(id=compra_entity.id),
+        )
 
     def test_process_payment_successfully(
         self,
@@ -228,7 +231,7 @@ class TestPagamentoService:
         )
         pedido = deepcopy(pedido_aggregate)
         pedido.payments = None
-        pagamento_service.purchase_query.get = MagicMock(return_value=pedido)
+        pagamento_service.pedido_repository.get = MagicMock(return_value=pedido)
         pagamento_service.meio_de_pagamento_query.get = MagicMock(
             return_value=payment_method_entity
         )
@@ -246,7 +249,7 @@ class TestPagamentoService:
         pagamento_service.payment_repository.create = MagicMock(
             return_value=return_payment
         )
-        pagamento_service.pedido_repository.update = MagicMock(
+        pagamento_service.pedido_repository.update_status = MagicMock(
             return_value=return_payment
         )
         result = pagamento_service.initiate_purchase_payment(1, 1, "")
@@ -262,7 +265,9 @@ class TestPagamentoService:
             return_value=True
         )
 
-        pagamento_service.purchase_query.get = MagicMock(return_value=pedido_aggregate)
+        pagamento_service.pedido_repository.get = MagicMock(
+            return_value=pedido_aggregate
+        )
         pagamento_service.meio_de_pagamento_query.get = MagicMock(
             return_value=payment_method_entity
         )
@@ -279,7 +284,7 @@ class TestPagamentoService:
             return_value=True
         )
 
-        pagamento_service.purchase_query.get = MagicMock(return_value=None)
+        pagamento_service.pedido_repository.get = MagicMock(return_value=None)
         pagamento_service.meio_de_pagamento_query.get = MagicMock(
             return_value=payment_method_entity
         )
@@ -299,7 +304,7 @@ class TestPagamentoService:
         pedido = deepcopy(pedido_aggregate)
         pedido.payments = None
         pedido.purchase.total = PrecoValueObject(value=0, currency=currency)
-        pagamento_service.purchase_query.get = MagicMock(return_value=pedido)
+        pagamento_service.pedido_repository.get = MagicMock(return_value=pedido)
         pagamento_service.meio_de_pagamento_query.get = MagicMock(
             return_value=payment_method_entity
         )
@@ -308,7 +313,7 @@ class TestPagamentoService:
         ):
             pagamento_service.initiate_purchase_payment(1, 1, "")
         pedido.purchase.total = PrecoValueObject(value=-10, currency=currency)
-        pagamento_service.purchase_query.get = MagicMock(return_value=pedido)
+        pagamento_service.pedido_repository.get = MagicMock(return_value=pedido)
         with pytest.raises(
             ValueError, match="Valor do pedido não pode ser zero ou negativo"
         ):
@@ -327,7 +332,7 @@ class TestPagamentoService:
         pedido.payments = None
         pedido.purchase.status = CompraStatus.CANCELADO
         pedido.purchase.total.value = 10
-        pagamento_service.purchase_query.get = MagicMock(return_value=pedido)
+        pagamento_service.pedido_repository.get = MagicMock(return_value=pedido)
         pagamento_service.meio_de_pagamento_query.get = MagicMock(
             return_value=payment_method_entity
         )
@@ -345,7 +350,7 @@ class TestPagamentoService:
         )
         pedido = deepcopy(pedido_aggregate)
         pedido.payments = None
-        pagamento_service.purchase_query.get = MagicMock(return_value=pedido)
+        pagamento_service.pedido_repository.get = MagicMock(return_value=pedido)
         pagamento_service.meio_de_pagamento_query.get = MagicMock(return_value=None)
         with pytest.raises(ValueError, match="Meio de pagamento não encontrado."):
             pagamento_service.initiate_purchase_payment(1, 1, "")
@@ -363,7 +368,7 @@ class TestPagamentoService:
         payment_method.is_active = False
         pedido = deepcopy(pedido_aggregate)
         pedido.payments = None
-        pagamento_service.purchase_query.get = MagicMock(return_value=pedido)
+        pagamento_service.pedido_repository.get = MagicMock(return_value=pedido)
         pagamento_service.meio_de_pagamento_query.get = MagicMock(
             return_value=payment_method
         )
@@ -404,7 +409,7 @@ class TestPagamentoService:
         pagamento_service.payment_repository.update = MagicMock(
             return_value=expected_result.payment
         )
-        pagamento_service.pedido_repository.update = MagicMock(
+        pagamento_service.pedido_repository.update_status = MagicMock(
             return_value=expected_result.purchase
         )
         result = pagamento_service.cancel_purchase_payment(1)
@@ -420,7 +425,7 @@ class TestPagamentoService:
             return_value=False
         )
         pagamento_service.payment_repository.update = MagicMock(return_value=None)
-        pagamento_service.pedido_repository.update = MagicMock(return_value=None)
+        pagamento_service.pedido_repository.update_status = MagicMock(return_value=None)
         with pytest.raises(ValueError, match="Pagamento não encontrado."):
             pagamento_service.cancel_purchase_payment(1)
 
@@ -436,7 +441,7 @@ class TestPagamentoService:
             return_value=False
         )
         pagamento_service.payment_repository.update = MagicMock(return_value=None)
-        pagamento_service.pedido_repository.update = MagicMock(return_value=None)
+        pagamento_service.pedido_repository.update_status = MagicMock(return_value=None)
         with pytest.raises(ValueError, match="Pagamento já concluído."):
             pagamento_service.cancel_purchase_payment(1)
         pagamento.payment.status = PagamentoStatus.CANCELADO
@@ -466,7 +471,7 @@ class TestPagamentoService:
         pagamento_service.payment_repository.update = MagicMock(
             return_value=expected_result.payment
         )
-        pagamento_service.pedido_repository.update = MagicMock(
+        pagamento_service.pedido_repository.update_status = MagicMock(
             return_value=expected_result.purchase
         )
         result = pagamento_service.cancel_purchase_payment(1)
@@ -482,7 +487,7 @@ class TestPagamentoService:
             return_value=False
         )
         pagamento_service.payment_repository.update = MagicMock(return_value=None)
-        pagamento_service.pedido_repository.update = MagicMock(return_value=None)
+        pagamento_service.pedido_repository.update_status = MagicMock(return_value=None)
         with pytest.raises(ValueError, match="Pagamento não encontrado."):
             pagamento_service.finalize_purchase_payment(1)
 
@@ -498,7 +503,7 @@ class TestPagamentoService:
             return_value=False
         )
         pagamento_service.payment_repository.update = MagicMock(return_value=None)
-        pagamento_service.pedido_repository.update = MagicMock(return_value=None)
+        pagamento_service.pedido_repository.update_status = MagicMock(return_value=None)
         with pytest.raises(ValueError, match="Pagamento já concluído."):
             pagamento_service.cancel_purchase_payment(1)
         pagamento.payment.status = PagamentoStatus.CANCELADO
